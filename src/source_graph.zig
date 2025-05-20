@@ -1,71 +1,21 @@
 const std = @import("std");
+const common = @import("common.zig");
 
-pub fn main() !void {
+pub fn main() void {
     // Create our allocator.
     var da = std.heap.DebugAllocator(.{}).init;
     defer _ = da.deinit();
 
     const allocator = da.allocator();
 
-    // Process the command-line arguments.
-    const args = processArguments(allocator);
-    // defer allocator.destroy(args);
+    // Parse the command-line arguments.
+    const args = common.parseCommandLineArguments(allocator, .{ .name = "source-graph" });
+    defer args.deinit();
 
-    std.debug.print("{}\n", .{args});
-}
-
-const Arguments = struct {
-    source_file: []const u8,
-
-    // Formatting
-
-    pub fn format(value: *const @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = value;
-        _ = writer;
-    }
-};
-
-fn isValidFilenameChar(char: u8) bool {
-    return !(char > 0x01 and char < 0x1F); // TODO:
-}
-
-fn processArguments(allocator: std.mem.Allocator) Arguments {
-    // Processing FSM.
-    const State = enum { Start, ShortArg, LongArg, Char, NextArg };
-
-    _ = allocator;
-
-    // Initialize the output.
-    const args = Arguments{
-        .source_file = undefined,
+    // Debug arguments.
+    if (common.DEBUG_ARGUMENTS) for (args.items) |arg| {
+        std.debug.print("{}\n", .{arg});
     };
-
-    // Process the arguments.
-    const raw_args = std.os.argv;
-
-    // If no arguments were passed in then print usage.
-    if (raw_args.len < 2) {
-        std.debug.print("Usage: {[app]s} <source_file> [options...]\n", .{ .app = raw_args[0] });
-        return;
-    }
-
-    var arg_i = 1; // The index of the argument currently being processed.
-    var char_i = 0; // The index of the character currently being processed in the argument.
-    var raw_arg = raw_args[arg_i]; // The actual argument.
-
-    b: switch (State.Start) {
-        .Start => {
-            // Begin parsing the first argument.
-            if (char_i >= raw_arg.len) unreachable;
-
-            switch (raw_arg[char_i]) {
-                else => {},
-            }
-        },
-        .Undefined => switch (raw_arg) {},
-    }
-
-    return args;
 }
 
 const SourceGraph = struct {
