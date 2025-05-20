@@ -34,6 +34,11 @@ fn addSourceGraph(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     // Create the executable's run step.
     const run = b.addRunArtifact(exe);
 
+    // Pass the command-line arguments through to the run step.
+    if (b.args) |args| {
+        run.addArgs(args);
+    }
+
     // Register the run step as a TLP.
     const run_tlp = b.step("source-graph", "Generates source/header dependencies for a supplied source file.");
     run_tlp.dependOn(&run.step);

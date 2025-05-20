@@ -9,13 +9,11 @@ pub fn main() void {
     const allocator = da.allocator();
 
     // Parse the command-line arguments.
-    const args = common.parseCommandLineArguments(allocator, .{ .name = "source-graph" });
+    var args = common.Arguments.parseCommandLineArguments(allocator, .{ .name = "source-graph" });
     defer args.deinit();
 
     // Debug arguments.
-    if (common.DEBUG_ARGUMENTS) for (args.items) |arg| {
-        std.debug.print("{}\n", .{arg});
-    };
+    std.debug.print("{}\n", .{args});
 }
 
 const SourceGraph = struct {
