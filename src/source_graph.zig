@@ -1,6 +1,11 @@
 const std = @import("std");
 const common = @import("common.zig");
 
+const Input = struct {
+    @"--string": []const u8,
+    @"--debug": bool = false,
+};
+
 pub fn main() void {
     // Create our allocator.
     var da = std.heap.DebugAllocator(.{}).init;
@@ -8,12 +13,18 @@ pub fn main() void {
 
     const allocator = da.allocator();
 
-    // Parse the command-line arguments.
-    var args = common.Arguments.parseCommandLineArguments(allocator, .{ .name = "source-graph" });
-    defer args.deinit();
+    // Create a parsing function to populate our program's input.
+    const Parser = common.ArgumentsFor(Input, .{
+        // .debug = true,
+        .aliases = struct {
+            pub const @"--debug" = &.{"-v"};
+        },
+    });
 
-    // Debug arguments.
-    std.debug.print("{}\n", .{args});
+    const input = Parser.parse(allocator) catch return;
+    defer Parser.deinit(allocator, input);
+
+    std.debug.print("{}\n", .{input.*});
 }
 
 const SourceGraph = struct {
