@@ -28,8 +28,8 @@ fn addSourceGraph(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         .root_module = mod,
     });
 
-    // Mark this to be installed.
-    b.installArtifact(exe);
+    // Create an install step.
+    const install = b.addInstallArtifact(exe, .{});
 
     // Create the executable's run step.
     const run = b.addRunArtifact(exe);
@@ -39,11 +39,15 @@ fn addSourceGraph(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         run.addArgs(args);
     }
 
+    // Register the install step as a TLP.
+    const install_tlp = b.step("build-source-graph", "Builds and installs source-graph");
+    install_tlp.dependOn(&install.step);
+
     // Register the run step as a TLP.
-    const run_tlp = b.step("source-graph", "Generates source/header dependencies for a supplied source file.");
+    const run_tlp = b.step("run-source-graph", "Generates source/header dependencies for a supplied source file.");
     run_tlp.dependOn(&run.step);
 
     // Register a check step.
-    const check_tlp = b.step("source-graph-check", "Checks the source-graph source code to be valid.");
+    const check_tlp = b.step("check-source-graph", "Checks the source-graph source code to be valid.");
     check_tlp.dependOn(&exe.step);
 }
