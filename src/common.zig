@@ -50,15 +50,21 @@ pub fn ArgumentsFor(comptime Input: type, comptime options: ArgumentsForOptions)
     return struct {
         pub fn parse(allocator: std.mem.Allocator) !*Input {
             // Allocate an instance of our `input` type.
-            const input = allocator.create(Input) catch @panic("Failed to allocate an instance of the input type.");
+            const input = try allocator.create(Input);
             errdefer deinit(allocator, input);
 
             // Allocate and populate an array of our command-line arguments.
-            var args = std.process.argsWithAllocator(allocator) catch @panic("Failed to allocate space for the command-line arguments.");
+            var args = try std.process.argsWithAllocator(allocator);
             defer args.deinit();
 
             // Create an array to store what has been assigned.
             var assignments: [fields.len]bool = .{false} ** fields.len;
+
+            // Possibly Positional Arguments™
+            // TODO: Reduce size by pre-computing count of required arguments.
+            var possibly_positional_arguments: [fields.len]?[]const u8 = .{null} ** fields.len;
+            // Possibly Positional Arguments™ Index
+            var ppa_index: usize = 0;
 
             // Loop through the arguments and their aliases.
             _ = args.next(); // Skip the executabe path.
@@ -124,7 +130,7 @@ pub fn ArgumentsFor(comptime Input: type, comptime options: ArgumentsForOptions)
 
                             if (string) {
                                 const fieldPtr: *[]const u8 = @ptrFromInt(@intFromPtr(input) + @offsetOf(Input, field.name));
-                                fieldPtr.* = allocator.dupe(
+                                fieldPtr.* = try allocator.dupe(
                                     u8,
                                     args.next() orelse {
                                         std.log.err(
@@ -133,10 +139,12 @@ pub fn ArgumentsFor(comptime Input: type, comptime options: ArgumentsForOptions)
                                         );
                                         return error.Error;
                                     },
-                                ) catch @panic("Failed to allocate space for the value of a string argument!");
+                                );
                             }
 
-                            if (int) {}
+                            if (int) {
+                                // TODO
+                            }
 
                             // Mark this field as having been assigned.
                             assignments[index] = true;
@@ -144,25 +152,88 @@ pub fn ArgumentsFor(comptime Input: type, comptime options: ArgumentsForOptions)
                             break :b;
                         }
                     }
-                }
 
-                // If the property doesn't exist then emit a warning and ignore it.
-                if (!exists) {
-                    std.log.warn("Unrecognized Argument: \"{s}\"", .{arg});
-                    continue;
+                    if (!exists) {
+                        if (ppa_index < possibly_positional_arguments.len) {
+                            dbg("Added \"{s}\" as a possibly positional argument.", .{arg});
+
+                            possibly_positional_arguments[ppa_index] = try allocator.dupe(u8, arg);
+                            ppa_index += 1;
+                        } else {
+                            std.log.err("Too many positional arguments specified, ignoring \"{s}\"", .{arg});
+                        }
+                    }
                 }
             }
 
             // Ensure required arguments are set, if not print usage.
             var all_required_assignments_set = true;
+            ppa_index = 0;
             inline for (fields, 0..) |field, i| {
                 if (!assignments[i] and @typeInfo(field.type) != .optional and field.defaultValue() == null) {
-                    std.log.err("\"{s}\" requires the argument \"{s}\" to be set!", .{ @typeName(Input), fields[i].name });
-                    all_required_assignments_set = false;
+                    if (possibly_positional_arguments[ppa_index]) |ppa| {
+                        dbg("Attempting to assign \"{s}\" to argument \"{s}\".", .{ ppa, field.name });
+
+                        // Flags for all supported variable types.
+                        comptime var boolean = false;
+                        comptime var string = false;
+                        comptime var int = false;
+
+                        comptime {
+                            s: switch (@typeInfo(field.type)) {
+                                // If the field is nullable, then loop the child type.
+                                .optional => |o| continue :s @typeInfo(o.child),
+                                // Booleans: (?)bool
+                                .bool => boolean = true,
+                                // Strings: (?)[]const u8
+                                .pointer => |p| string = p.is_const and p.child == u8,
+                                // Integers: (?)any bitness / sign
+                                .int => int = true,
+                                // Otherwise, this field is not supported.
+                                else => @compileError(std.fmt.comptimePrint("Invalid Type \"{s}\" for argument \"{s}\"", .{
+                                    @typeName(field.type),
+                                    field.name,
+                                })),
+                            }
+                        }
+
+                        if (boolean) {
+                            const fieldPtr: *bool = @ptrFromInt(@intFromPtr(input) + @offsetOf(Input, field.name));
+                            if (std.mem.eql(u8, ppa, "true")) {
+                                fieldPtr.* = true;
+                            } else if (std.mem.eql(u8, ppa, "false")) {
+                                fieldPtr.* = false;
+                            }
+                        }
+
+                        if (string) {
+                            const fieldPtr: *[]const u8 = @ptrFromInt(@intFromPtr(input) + @offsetOf(Input, field.name));
+                            fieldPtr.* = ppa;
+                        }
+
+                        if (int) {
+                            // TODO
+                        }
+
+                        possibly_positional_arguments[ppa_index] = null;
+                        if (ppa_index < possibly_positional_arguments.len - 1) {
+                            ppa_index += 1;
+                        }
+                    } else {
+                        std.log.err("\"{s}\" requires the argument \"{s}\" to be set!", .{ @typeName(Input), fields[i].name });
+                        all_required_assignments_set = false;
+                    }
                 }
             }
+            // Free the extra arguments.
+            for (possibly_positional_arguments) |@"ppa?"| if (@"ppa?") |ppa| {
+                std.log.warn("Positional argument \"{s}\" was discarded.", .{ppa});
+                allocator.free(ppa);
+            };
+
             if (!all_required_assignments_set) {
                 // TODO: Print usage.
+
                 return error.Error;
             }
 

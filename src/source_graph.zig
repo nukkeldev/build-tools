@@ -2,7 +2,14 @@ const std = @import("std");
 const common = @import("common.zig");
 
 const Input = struct {
-    @"--string": []const u8,
+    /// The input source file.
+    @"--input": []const u8,
+    /// Additional include directories to search.
+    /// Passed in seperated by commas.
+    /// TODO: Support CSVs
+    // @"--include-dirs": [][]const u8 = &.{},
+
+    /// Whether to enable debugging for the program.
     @"--debug": bool = false,
 };
 
@@ -15,16 +22,18 @@ pub fn main() void {
 
     // Create a parsing function to populate our program's input.
     const Parser = common.ArgumentsFor(Input, .{
-        // .debug = true,
+        .debug = true,
         .aliases = struct {
             pub const @"--debug" = &.{"-v"};
+            pub const @"--input" = &.{"-i"};
+            // pub const @"--include-dirs" = &.{ "-d", "--include" };
         },
     });
 
     const input = Parser.parse(allocator) catch return;
     defer Parser.deinit(allocator, input);
 
-    std.debug.print("{}\n", .{input.*});
+    std.log.info("Constructing the source-graph for \"{s}\".", .{input.@"--input"});
 }
 
 const SourceGraph = struct {
