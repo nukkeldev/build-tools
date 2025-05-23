@@ -29,6 +29,8 @@
               # zig
               zls
               zig_0_14
+
+              lldb
             ];
           };
         };
