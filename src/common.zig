@@ -51,7 +51,7 @@ pub fn ArgumentsFor(comptime Input: type, comptime options: ArgumentsForOptions)
         pub fn parse(allocator: std.mem.Allocator) !*Input {
             // Allocate an instance of our `input` type.
             const input = try allocator.create(Input);
-            errdefer deinit(allocator, input);
+            errdefer allocator.destroy(input);
 
             // Allocate and populate an array of our command-line arguments.
             var args = try std.process.argsWithAllocator(allocator);
@@ -65,6 +65,7 @@ pub fn ArgumentsFor(comptime Input: type, comptime options: ArgumentsForOptions)
             var possibly_positional_arguments: [fields.len]?[]const u8 = .{null} ** fields.len;
             // Possibly Positional Arguments™ Index
             var ppa_index: usize = 0;
+            errdefer for (possibly_positional_arguments) |@"ppa?"| if (@"ppa?") |ppa| allocator.free(ppa);
 
             // Loop through the arguments and their aliases.
             _ = args.next(); // Skip the executabe path.
